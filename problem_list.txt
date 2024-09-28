@@ -1,0 +1,9 @@
+1.假设每个station每次分到的users个数是相同的，是否合理？
+
+2.每个station在allocate users时，由于考虑负载均衡，导致user重新分配时，belong_id和distance都是错误的。
+
+3.一个task要么在本地计算，要么offload到边缘服务器计算，不存在仅部分放到服务器的情况是吗？
+
+4.当前代码所有task均放到了服务器，reward.py:53未执行
+
+5.对actions做后处理时，重新做了线性变换（x-min）/ (max-min)，必然导致0.0和1.0产生，是否合理？是否使用softmax更合适？
