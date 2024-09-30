@@ -7,3 +7,9 @@
 4.当前代码所有task均放到了服务器，reward.py:53未执行
 
 5.对actions做后处理时，重新做了线性变换（x-min）/ (max-min)，必然导致0.0和1.0产生，是否合理？是否使用softmax更合适？
+
+6.何为planing_dealing_time需要取整？
+
+7.为何基站上计算不会跨slot？
+
+8.极端情况排查时，delay_obs设计是否合理？改为softmax是否就不会发生allocated_resource过载的问题

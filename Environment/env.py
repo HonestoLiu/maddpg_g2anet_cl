@@ -5,6 +5,7 @@ import random
 import numpy as np
 from numpy import ndarray
 import math
+from queue import Queue
 
 class MEC_Env:
     def __init__(self, side_len: float, station_num: int, user_num: int, station_cpu_frequency: float,
@@ -18,6 +19,8 @@ class MEC_Env:
         self.station_noise_power = station_noise_power
         self.user_cpu_frequency = user_cpu_frequency
         self.user_trans_power = user_trans_power
+
+        self.energy_cost_coefficient = 0.5
 
         self.stations = []
         self.users = []
@@ -34,23 +37,25 @@ class MEC_Env:
             y = point_y[i // station_per_side]
             self.stations.append(Station(i, x, y, self.station_cpu_frequency,
                                          self.station_band_width, self.station_noise_power))
-    
-    def _init_users(self) -> None:
-        for i in range(self.user_num):
-            x = random.uniform(0, self.side_len)
-            y = random.uniform(0, self.side_len)
-            self.users.append(User(i, x, y, self.side_len, self.user_cpu_frequency, self.user_trans_power))
-
-    def _reset_users(self) -> None:
-        for user_i in self.users:
-            user_i.position[0] = random.uniform(0, self.side_len)
-            user_i.position[1] = random.uniform(0, self.side_len)
-            user_i.task = Task(0)
-
-    def allallocate_users_to_stations(self) -> None:
-        for station_i in self.stations:
+            
+    def _reset_stations(self) -> None:
+       for station_i in self.stations:
             station_i.in_range_users.clear()
 
+    def _init_users(self) -> None:
+        for j in range(self.user_num):
+            x = random.uniform(0, self.side_len)
+            y = random.uniform(0, self.side_len)
+            self.users.append(User(j, x, y, self.side_len, self.user_cpu_frequency, self.user_trans_power))
+
+    def _reset_users(self) -> None:
+        for user_j in self.users:
+            user_j.position[0] = random.uniform(0, self.side_len)
+            user_j.position[1] = random.uniform(0, self.side_len)
+            user_j.curr_task = Task(0)
+            user_j.task_queue = Queue()
+
+    def _allallocate_users_to_stations(self) -> None:
         user_num_per_station = self.user_num // self.station_num
         for user_j in self.users:
             nearest_station_id = -1
@@ -72,29 +77,84 @@ class MEC_Env:
     def init_env(self) -> None:
         self._init_stations()
         self._init_users()
-        self.allocate_user_to_station()
+        self._allocate_user_to_station()
 
     def reset_env(self) -> None:
+        self._reset_stations()
         self._reset_users()
-        self.allallocate_users_to_stations()
+        self._allallocate_users_to_stations()
         
-    def step(self, now_slot: int, actions_pos: ndarray):
+    def step(self, now_slot, slot_size, actions_pos):
         '''
         actions : [n_agents, n_actions]
         '''
+        energy_cost   = 0  # 能量
+        delay_time    = 0  # 延时
+        workload_size = 0  # 任务量
+        success_num   = 0  # 成功个数
+        
         # The order of actions correspondes to the order of users in station.
         actions_pos = actions_pos.reshape(self.station_num, -1, 2)
         for i, station_i in enumerate(self.stations):
+            local_users   = []
+            offload_users = []
+
             for j, user_j in station_i.in_range_users:
-                if actions_pos[i][j][0] == 0:  # local
-                    user_j.task.allocated_resource = actions_pos[i][j][1] * user_j.resource
-                elif actions_pos[i][j][1] == 1:  # edge
-                    user_j.task.allocated_resource = actions_pos[i][j][1] * station_i.resource
+                task_to_offload = actions_pos[i][j][0]
+                if task_to_offload == 0:  # local
+                    task_resource = actions_pos[i][j][1] * user_j.resource
+                    local_users.append(user_j)
+                else:  # edge
+                    task_resource = actions_pos[i][j][1] * station_i.resource
+                    offload_users.append(user_j)
+                user_j.set_task_info(now_slot, slot_size, task_to_offload, task_resource)
+            
+            # get trans_rate
+            band_width_avg = station_i.band_width / len(offload_users)
+            ratio = user_j.trans_power * math.pow(user_j.nearest_station_dis, -4) / station_i.noise_power
+            trans_rate = band_width_avg * math.log(1 + ratio)
 
+            # energy
+            for user_j in local_users:
+                energy_cost += self.energy_cost_coefficient * user_j.curr_task.need_cycle / (user_j.resource ** 2)
+
+            for user_j in offload_users:
+                energy_cost += user_j.trans_power * user_j.curr_task.offload_size / trans_rate
+            
+            # delay
+            for user_j in local_users:
+                local_delay = user_j.local_delay
+                deal_time = user_j.curr_task.need_cycle / user_j.curr_task.resource
+                delay_time += (local_delay + deal_time)
+            
+            for user_j in offload_users:
+                trans_time = user_j.curr_task.offload_size / trans_rate
+                deal_time = user_j.curr_task.need_cycle / user_j.curr_task.resource
+                # TODO(liuhong): check
+                deal_time = min(deal_time, slot_size)
+                delay_time += (trans_time + deal_time)      
+
+            # TODO(liuhong): 极端情况排查              
+
+            # success
+            for user_j in station_i.in_range_users:
+                if user_j.curr_task.planning_finish_time <= now_slot + user_j.curr_task.max_delay:
+                    workload_size += user_j.curr_task.workload_size
+                    success_num += 1
+
+            for user_j in station_i.in_range_users:
+                user_j.step(now_slot)
+
+        self._allallocate_users_to_stations()
         
-
-
-        
+        reward_list = [0, 0, 0]
+        reward_list[0] -= (0.1 * energy_cost)
+        reward_list[1] -= (0.1 * delay_time)
+        reward_list[2] += (0.1 * delay_time)
+        energy_cost_avg = energy_cost / self.user_num
+        delay_time_avg = delay_time / self.user_num
+        workload_size_avg = workload_size / self.user_num
+        return reward_list, energy_cost_avg, delay_time_avg, workload_size_avg, success_num
 
     def get_agent_num(self) -> int:
         return self.station_num
@@ -134,4 +194,3 @@ class MEC_Env:
                 obs[i][7 * j + 5] = user_j.task.offload_size
                 obs[i][7 * j + 6] = user_j.task.max_delay
         return obs
-    

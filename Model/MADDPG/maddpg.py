@@ -28,6 +28,7 @@ class MADDPG:
 
     def pos_process_action(self, actions: ndarray) -> ndarray:
         '''
+        Post-process the action, including discretization and remapping.
         input  : [n_agents, n_actions]
         output : [n_agents, n_actions]
         '''
@@ -36,6 +37,7 @@ class MADDPG:
         discrete_action_mean = np.mean(actions[:,odd_slice], axis=1, keepdims=True)
         actions[:,odd_slice] = (actions[:,odd_slice] >= discrete_action_mean).astype(actions.int)
 
+        # TODO(liuhong): try softmax remapping
         parameter_action_min = np.min(actions[:,even_slice], axis=1, keepdims=True)
         parameter_action_max = np.max(actions[:,even_slice], axis=1, keepdims=True)
         actions[:,even_slice] = (actions[:,even_slice] - parameter_action_min) / (parameter_action_max - parameter_action_min)
