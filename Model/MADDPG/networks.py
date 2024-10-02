@@ -48,7 +48,7 @@ class CriticNetwork(nn.Module):
     def forward(self, state, action):
         x = F.relu(self.fc1(T.cat([state, action], dim=1)))
         x = F.relu(self.fc2(x))
-        q = self.q(x)  # Q(s, a) --> int
+        q = self.q(x)  # Q(s, a) --> float
         return q
 
     def save_checkpoint(self):

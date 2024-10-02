@@ -1,21 +1,19 @@
-from Environment import MEC_Env
 import random
-from queue import Queue
 import math
-from numpy import ndarray
+from queue import Queue
 
+from Environment import MEC_Env
 
 class Task:
-    def __init__(self, appear_time) -> None:
+    def __init__(self, appear_time: int):
         self.appear_time = appear_time
-        self.need_cycle = random.uniform(0.2, 1)  # unit: 10^9 cycle
+        self.need_cycle = random.uniform(0.2, 1)   # unit: 10^9 cycle
         self.workload_size = random.uniform(2, 5)  # unit: 10^6 bit
-        self.max_dealy = 0.2                      # unit: second
+        self.max_dealy = 0.2                       # unit: second
         
         self.to_offload = 0
         self.resource = 0
         self.planing_finish_time = 0
-
 
 class User:
     def __init__(self, user_id: int, x: float, y: float, side_boundary: float,
@@ -32,18 +30,18 @@ class User:
         # task info
         self.curr_task = Task()
         self.local_task_queue = Queue()
-        self.local_delay = 0
+        self.local_queue_delay = 0
 
     def set_task_info(self, now_slot, slot_size, task_to_offload, task_resource):
         self.curr_task.to_offload = task_to_offload
         self.curr_task.resource = task_resource
         if task_to_offload == 0:  # local
             deal_time = self.curr_task.need_cycle / self.resource
-            self.curr_task.planing_finish_time = now_slot - slot_size + self.local_delay + deal_time
+            self.curr_task.planing_finish_time = now_slot - slot_size + self.local_queue_delay + deal_time
         else:  # edge
             self.curr_task.planing_finish_time = now_slot
 
-    def step(self, now_slot) -> None:
+    def step(self, now_slot):
         # update position, mirror it back if out
         x = self.position[0] + random.uniform(-2, 2)
         y = self.position[1] + random.uniform(-2, 2)
@@ -58,16 +56,16 @@ class User:
             self.local_task_queue.put(self.curr_task)
 
         # remove finished task
-        unfinish_queue = []
+        unfinish_tasks = []
         while True:
             task = self.local_task_queue.get()
             if task.planning_finish_time > now_slot:
-                self.local_delay = task.planning_finish_time - now_slot
-                unfinish_queue.append(task)
+                self.local_queue_delay = task.planning_finish_time - now_slot
+                unfinish_tasks.append(task)
             else:
-                self.local_delay = 0
+                self.local_queue_delay = 0
         
-        for task in unfinish_queue:
+        for task in unfinish_tasks:
             self.local_task_queue.put(task)
 
         # generate a new curr_task

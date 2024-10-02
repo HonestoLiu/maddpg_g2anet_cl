@@ -3,6 +3,7 @@ import random
 import numpy as np
 import torch
 from tqdm import tqdm
+
 from Environment import MEC_Env
 from Model.MADDPG.maddpg import MADDPG
 from Model.MADDPG.buffer import MultiAgentReplayBuffer
@@ -33,22 +34,32 @@ if __name__ == '__main__':
                                station_noise_power=6 * pow(10, -8),
                                user_cpu_frequency=1,
                                user_trans_power=1)
-                                       
-                                       
-    
-    # initial actor-critic agent
+                                                     
+    # initial actor-critic agents
     n_agents = mec_env.get_agent_num()  # 4
     actor_dims = [mec_env.get_obs_dim] * n_agents  # [35, 35, 35, 35]
     critic_dims = sum(actor_dims)  # 140
     n_actions = mec_env.get_action_dim()  # 10
 
-    maddpg_agents = MADDPG(actor_dims, critic_dims, n_agents, n_actions, scenario='simple',
-                           alpha=0.01, beta=0.01, fc1=64, fc2=64, gamma=0.99, tau=0.01,
+    maddpg_agents = MADDPG(actor_dims=actor_dims, 
+                           critic_dims=critic_dims, 
+                           n_agents=n_agents,
+                           n_actions=n_actions,
+                           alpha=0.01,
+                           beta=0.01,
+                           fc1=64,
+                           fc2=64,
+                           gamma=0.99,
+                           tau=0.01,
                            chkpt_dir='weights/maddpg/')
     
     # initial replay buffer
-    memory = MultiAgentReplayBuffer()
-
+    memory = MultiAgentReplayBuffer(max_size=1000000,
+                                    critic_dims=critic_dims,
+                                    actor_dims=actor_dims,
+                                    n_actions=n_actions,
+                                    n_agents=n_actions,
+                                    batch_size=1024)
 
     if args.evaluate:
         maddpg_agents.load_checkpoint()
@@ -64,21 +75,21 @@ if __name__ == '__main__':
         score = 0
         done = [False] * n_agents  # whether agent finished
 
-
         mec_env.reset_env()
-        obs = mec_env.get_obs()
 
         while not any(done):
-            if episode_step >= args.max_steps:
+            if episode_step >= args.max_steps:  # 100
                 done = [True] * n_agents
-        
-            if args.evaluate:
-                pass
 
+            obs = mec_env.get_obs()
             actions = maddpg_agents.choose_action(obs)
-            obs_, step_reward, step_energy, step_delay, step_success_ratio = mec_env.step(actions)
-
-            memory.store_transition(obs, state, actions, reward, obs_, state_, done)
+            actions_pos = maddpg_agents.pos_process_action(actions)
+            obs_, step_reward, step_energy, step_delay, step_workload, step_successs = \
+                  mec_env.step(now_slot=episode_step, slot_size=1, actions_pos=actions_pos)
+            state  = obs.flatten()
+            state_ = obs_.flatten()
+            memory.store_transition(raw_obs=obs, state=state, action=actions, reward=step_reward,
+                                    raw_obs_=obs_, state_=state_, done=done)
 
             if total_step % 1000 == 0 and not args.evaluate:
                 maddpg_agents.learn(memory)

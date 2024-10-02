@@ -5,8 +5,8 @@ import numpy as np
 from agent import Agent
 
 class MADDPG:
-    def __init__(self, actor_dims: int, critic_dims: int, n_agents:int, n_actions: int,
-                 alpha=0.01, beta=0.01, fc1=64, fc2=64, gamma=0.99, tau=0.01, chkpt_dir='tmp/maddpg/'):
+    def __init__(self, actor_dims: int, critic_dims: int, n_agents:int, n_actions: int, alpha=0.01,
+                 beta=0.01, fc1=64, fc2=64, gamma=0.99, tau=0.01, chkpt_dir='weights/maddpg/'):
         self.agents = []
         self.n_agents = n_agents
         self.n_actions = n_actions 
