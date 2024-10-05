@@ -1,18 +1,18 @@
 import numpy as np
 
 class MultiAgentReplayBuffer:
-    def __init__(self, max_size, critic_dims, actor_dims, n_actions, n_agents, batch_size):
+    def __init__(self, max_size: int, n_agents: int, actor_dims: int, critic_dims: int, n_actions: int, batch_size: int):
         self.mem_cntr = 0
         self.mem_size = max_size
-        self.critic_dim = critic_dims
-        self.actor_dims = actor_dims
-        self.n_actions = n_actions
         self.n_agents = n_agents
+        self.actor_dims = actor_dims
+        self.critic_dims = critic_dims
+        self.n_actions = n_actions
         self.batch_size = batch_size        
 
-        self.init_memory()
+        self._init_memory()
 
-    def init_memory(self):
+    def _init_memory(self):
         self.state_memory     = np.zeros((self.mem_size, self.critic_dims))
         self.new_state_memory = np.zeros((self.mem_size, self.critic_dims))
         self.reward_memory    = np.zeros((self.mem_size, self.n_agents))
@@ -24,19 +24,19 @@ class MultiAgentReplayBuffer:
 
         for agent_i in range(self.n_agents):
             self.actor_state_memory.append(
-                            np.zeros((self.mem_size, self.actor_dims[agent_i])))
+                            np.zeros((self.mem_size, self.actor_dims)))
             self.actor_new_state_memory.append(
-                            np.zeros((self.mem_size, self.actor_dims[agent_i])))
+                            np.zeros((self.mem_size, self.actor_dims)))
             self.actor_action_memory.append(
                             np.zeros((self.mem_size, self.n_actions)))
 
     def store_transition(self, raw_obs, state, action, reward, raw_obs_, state_, done):
         '''
-        raw_obs/raw_obs_ : [n_agent, actor_dim]
-        state/state_     : [critic_dim, ]
-        action           : [n_agent, n_action]
-        reward           : [n_agent, ]
-        done             : [n_agent, ]
+        raw_obs/raw_obs_ : [n_agents, actor_dims]
+        state/state_     : [critic_dims, ]
+        action           : [n_agents, n_actions]
+        reward           : [n_agents, ]
+        done             : [n_agents, ]
         '''
         index = self.mem_cntr % self.mem_size
 

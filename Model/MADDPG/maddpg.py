@@ -2,16 +2,21 @@ import torch as T
 import torch.nn.functional as F
 from numpy import ndarray
 import numpy as np
-from agent import Agent
+
+from Model.MADDPG.agent import Agent
+
+def numpy_softmax(x, axis=-1):
+    e_x = np.exp(x - np.max(x, axis=axis, keepdims=True))
+    return e_x / np.sum(e_x, axis=axis, keepdims=True)
 
 class MADDPG:
-    def __init__(self, actor_dims: int, critic_dims: int, n_agents:int, n_actions: int, alpha=0.01,
+    def __init__(self, n_agents: int, actor_dims: int, critic_dims: int, n_actions: int, alpha=0.01,
                  beta=0.01, fc1=64, fc2=64, gamma=0.99, tau=0.01, chkpt_dir='weights/maddpg/'):
         self.agents = []
         self.n_agents = n_agents
         self.n_actions = n_actions 
-        for agent_i in range(self.n_actions):
-            self.agents.append(Agent(actor_dims, critic_dims, n_agents, n_actions, agent_i,
+        for agent_i in range(self.n_agents):
+            self.agents.append(Agent(n_agents, actor_dims, critic_dims, n_actions, agent_i,
                                      alpha, beta, fc1, fc2, gamma, tau, chkpt_dir))
 
     def choose_action(self, observations: ndarray) -> ndarray:
@@ -21,7 +26,7 @@ class MADDPG:
         '''
         actions = []
         for i, agent_i in enumerate(self.agents):
-            observation = observations[i]
+            observation = np.expand_dims(observations[i], axis=0)
             action = agent_i.choose_action(observation)
             actions.append(action)
         return np.concatenate(actions, axis=0)
@@ -32,15 +37,19 @@ class MADDPG:
         input  : [n_agents, n_actions]
         output : [n_agents, n_actions]
         '''
+        pos_actions = actions.copy()
         odd_slice  = range(0, self.n_actions, 2)
         even_slice = range(1, self.n_actions, 2)
         discrete_action_mean = np.mean(actions[:,odd_slice], axis=1, keepdims=True)
-        actions[:,odd_slice] = (actions[:,odd_slice] >= discrete_action_mean).astype(actions.int)
+        pos_actions[:,odd_slice] = (actions[:,odd_slice] >= discrete_action_mean).astype(actions.dtype)
 
         # TODO(liuhong): try softmax remapping
-        parameter_action_min = np.min(actions[:,even_slice], axis=1, keepdims=True)
-        parameter_action_max = np.max(actions[:,even_slice], axis=1, keepdims=True)
-        actions[:,even_slice] = (actions[:,even_slice] - parameter_action_min) / (parameter_action_max - parameter_action_min)
+        # parameter_action_min = np.min(actions[:,even_slice], axis=1, keepdims=True)
+        # parameter_action_max = np.max(actions[:,even_slice], axis=1, keepdims=True)
+        # pos_actions[:,even_slice] = (actions[:,even_slice] - parameter_action_min) / \
+        #                             (parameter_action_max - parameter_action_min)
+        pos_actions[:,even_slice] = numpy_softmax(actions[:,even_slice], axis=1)
+        return pos_actions
     
     def learn(self, memory):
         if not memory.ready():

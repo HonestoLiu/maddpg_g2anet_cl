@@ -1,10 +1,11 @@
 import torch as T
 from numpy import ndarray
-from networks import ActorNetwork, CriticNetwork
+
+from Model.MADDPG.networks import *
 
 class Agent:
-    def __init__(self, actor_dims, critic_dims, n_agents, n_actions, agent_idx, 
-                 alpha=0.01, beta=0.01, fc1=64, fc2=64, gamma=0.99, tau=0.01, chkpt_dir='tmp/maddpg'):
+    def __init__(self, n_agents: int, actor_dims: int, critic_dims: int, n_actions: int, agent_idx: int, 
+                 alpha=0.01, beta=0.01, fc1=64, fc2=64, gamma=0.99, tau=0.01, chkpt_dir='weights/maddpg'):
         self.gamma = gamma
         self.tau = tau
         self.n_actions = n_actions
@@ -27,7 +28,7 @@ class Agent:
         state = T.tensor(observation, dtype=T.float).to(self.actor.device)
         noise = T.rand(self.n_actions, dtype=T.float).to(self.actor.device)
         action = self.actor.forward(state)
-        action = action + noise
+        action = action + 0.01 * noise
         return action.detach().cpu().numpy()
 
     def update_network_parameters(self, tau=None):

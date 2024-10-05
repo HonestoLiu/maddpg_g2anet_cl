@@ -1,15 +1,12 @@
 import random
-import math
 from queue import Queue
-
-from Environment import MEC_Env
 
 class Task:
     def __init__(self, appear_time: int):
         self.appear_time = appear_time
-        self.need_cycle = random.uniform(0.2, 1)   # unit: 10^9 cycle
+        self.need_cycle = random.uniform(0.2, 1.2)   # unit: 10^9 cycle
         self.workload_size = random.uniform(2, 5)  # unit: 10^6 bit
-        self.max_dealy = 0.2                       # unit: second
+        self.max_delay = 0.2                       # unit: second
         
         self.to_offload = 0
         self.resource = 0
@@ -28,7 +25,7 @@ class User:
         self.nearest_station_dis = float("inf")
 
         # task info
-        self.curr_task = Task()
+        self.curr_task = Task(0)
         self.local_task_queue = Queue()
         self.local_queue_delay = 0
 
@@ -57,10 +54,10 @@ class User:
 
         # remove finished task
         unfinish_tasks = []
-        while True:
+        while not self.local_task_queue.empty():
             task = self.local_task_queue.get()
-            if task.planning_finish_time > now_slot:
-                self.local_queue_delay = task.planning_finish_time - now_slot
+            if task.planing_finish_time > now_slot:
+                self.local_queue_delay = task.planing_finish_time - now_slot
                 unfinish_tasks.append(task)
             else:
                 self.local_queue_delay = 0
@@ -72,4 +69,5 @@ class User:
         self.curr_task = Task(now_slot)
 
     def print(self):
-        print(f"User[{self.user_id}]: position = {self.position}")
+        print(f"    User[{self.user_id:2}]: position = ({self.position[0]:4.2f}" +
+              f", {self.position[1]:4.2f}), station_id = {self.nearest_station_id:2}")

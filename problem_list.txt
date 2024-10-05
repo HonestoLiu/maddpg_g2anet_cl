@@ -13,3 +13,5 @@
 7.为何基站上计算不会跨slot？
 
 8.极端情况排查时，delay_obs设计是否合理？改为softmax是否就不会发生allocated_resource过载的问题
+
+9.log2还是log(e)

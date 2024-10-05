@@ -1,5 +1,3 @@
-from user import User
-
 class Station:
     def __init__(self, station_id: int, x: float, y: float , resource: float,
                  band_width: float, noise_power: float) -> None:
@@ -12,3 +10,5 @@ class Station:
 
     def print(self):
         print(f"Station[{self.station_id}]: position = {self.position}")
+        for user in self.in_range_users:
+            user.print()
