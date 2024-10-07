@@ -96,13 +96,17 @@ class MEC_Env:
         delay_time    = 0  # 延时
         workload_size = 0  # 任务量
         success_num   = 0  # 成功个数
-        reward_list = [0, 0, 0]
+        reward = np.zeros((self.get_agent_num(), 3))
         
         # The order of actions correspondes to the order of users in station.
         actions_pos = actions_pos.reshape(self.station_num, -1, 2)
         for i, station_i in enumerate(self.stations):
             local_users   = []
             offload_users = []
+            station_energy   = 0
+            station_delay    = 0
+            station_workload = 0
+            station_success  = 0
 
             for j, user_j in enumerate(station_i.in_range_users):
                 task_to_offload = int(actions_pos[i][j][0])
@@ -125,49 +129,52 @@ class MEC_Env:
 
             # energy
             for user_j in local_users:
-                energy_cost += self.energy_cost_coefficient * user_j.curr_task.need_cycle * (user_j.resource ** 2)
+                station_energy += self.energy_cost_coefficient * user_j.curr_task.need_cycle * (user_j.resource ** 2)
 
             for j, user_j in enumerate(offload_users):
-                energy_cost += user_j.trans_power * user_j.curr_task.workload_size / offload_trans_rate[j]
+                station_energy += user_j.trans_power * user_j.curr_task.workload_size / offload_trans_rate[j]
             
             # delay
             for user_j in local_users:
                 local_delay = user_j.local_queue_delay
                 deal_time = user_j.curr_task.need_cycle / user_j.curr_task.resource
-                delay_time += (local_delay + deal_time)
+                station_delay += (local_delay + deal_time)
             
             for j, user_j in enumerate(offload_users):
                 trans_time = user_j.curr_task.workload_size / offload_trans_rate[j]
                 deal_time = user_j.curr_task.need_cycle / user_j.curr_task.resource
                 # TODO(liuhong): check the reason
                 deal_time = min(deal_time, slot_size)
-                delay_time += (trans_time + deal_time)      
+                station_delay += (trans_time + deal_time)      
 
             # TODO(liuhong): 极端情况排查              
 
             # success
             for user_j in station_i.in_range_users:
                 if user_j.curr_task.planing_finish_time <= now_slot + user_j.curr_task.max_delay:
-                    workload_size += user_j.curr_task.workload_size
-                    success_num += 1
+                    station_workload += user_j.curr_task.workload_size
+                    station_success += 1
 
             for user_j in station_i.in_range_users:
                 user_j.step(now_slot)
 
+            energy_cost   += station_energy
+            delay_time    += station_delay
+            workload_size += station_workload
+            success_num   += station_success
+            reward[i][0] -= (0.1 * station_energy)
+            reward[i][1] -= (0.1 * station_delay)
+            reward[i][2] += (0.1 * station_workload)
+
         self._reset_stations()
         self._allocate_users_to_stations()
-        print("111111\n")
-        self.print()
         new_obs = self.get_obs()
-        
-        reward_list[0] -= (0.1 * energy_cost)
-        reward_list[1] -= (0.1 * delay_time)
-        reward_list[2] += (0.1 * workload_size)
+
         energy_cost_avg = energy_cost / self.user_num
         delay_time_avg = delay_time / self.user_num
         workload_size_avg = workload_size / self.user_num
         success_rate_avg = success_num / self.user_num
-        return new_obs, reward_list, energy_cost_avg, delay_time_avg, workload_size_avg, success_rate_avg
+        return new_obs, reward, energy_cost_avg, delay_time_avg, workload_size_avg, success_rate_avg
 
     def get_agent_num(self) -> int:
         return self.station_num
@@ -180,9 +187,9 @@ class MEC_Env:
           [2]: user position_x
           [3]: user position_y
           [4]: user task cycle
-          [5]: user task offload size
+          [5]: user task workload size
           [6]: user task max delay
-        And there are n uers in each station, so obs_dim is n * 7.
+        And there are n users in each station, so obs_dim is n * 7.
         '''
         return self.user_num // self.station_num * 7
     

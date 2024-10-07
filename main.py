@@ -97,7 +97,8 @@ if __name__ == '__main__':
                   mec_env.step(now_slot=episode_step+1, slot_size=1, actions_pos=actions_pos)
             state  = obs.flatten()
             state_ = obs_.flatten()
-            memory.store_transition(raw_obs=obs, state=state, action=actions, reward=step_reward,
+            reward = step_reward.sum(axis=1)
+            memory.store_transition(raw_obs=obs, state=state, action=actions, reward=reward,
                                     raw_obs_=obs_, state_=state_, done=done)
             obs = obs_
 
@@ -125,4 +126,3 @@ if __name__ == '__main__':
 
         if i % print_interval == 0 and i > 0:
             print('episode', i, 'score {:.1f}'.format(score))
-
